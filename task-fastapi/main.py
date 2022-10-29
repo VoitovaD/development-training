@@ -1,9 +1,8 @@
 import time
 from enum import Enum
-from random import randint
 from typing import Optional
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException, status
 from pydantic import BaseModel, Field
 
 app = FastAPI()
@@ -39,17 +38,10 @@ class Timestamp(BaseModel):
 
 
 # база данных собак
-DB_DOGS = {
-    "Daisy": DogType.terrier,
-    "Max": DogType.terrier,
-    "Charlie": DogType.bulldog,
-    "Lucy": DogType.bulldog,
-    "Cooper": DogType.dalmatian,
-    "Milo": DogType.dalmatian,
-}
+DB_DOGS = {}
 
 
-@app.get("/")
+@app.get("/", response_model=list[Dog])
 def root() -> list[Dog]:
     """
     Путь "GET /".
@@ -59,10 +51,7 @@ def root() -> list[Dog]:
     :return:
     """
 
-    return [
-        (Dog(pk=index, name=db_dog_name, kind=db_dog_kind))
-        for index, (db_dog_name, db_dog_kind) in enumerate(DB_DOGS.items(), start=1)
-    ]
+    return list(DB_DOGS.values())
 
 
 @app.post("/post", response_model=Timestamp)
@@ -76,7 +65,7 @@ def get_post() -> Timestamp:
     return Timestamp(id=0, timestamp=time.time(),)
 
 
-@app.get("/dog")
+@app.get("/dog", response_model=list[Dog])
 def get_dogs(kind: DogType = Query(..., title="Порода собаки")) -> list[Dog]:
     """
     Получение списка собак с фильтрацией по переданной породе собаки.
@@ -86,11 +75,7 @@ def get_dogs(kind: DogType = Query(..., title="Порода собаки")) -> l
     """
 
     # получение собак с фильтрацией по породе
-    return [
-        (Dog(pk=index, name=db_dog_name, kind=db_dog_kind))
-        for index, (db_dog_name, db_dog_kind) in enumerate(DB_DOGS.items(), start=1)
-        if db_dog_kind == kind
-    ]
+    return [dog for dog in DB_DOGS.values() if dog.kind == kind]
 
 
 @app.post("/dog", response_model=Dog)
@@ -102,11 +87,20 @@ def create_dog(dog: Dog) -> Dog:
     :return:
     """
 
-    return Dog(pk=dog.pk if dog.pk else randint(1, 10), name=dog.name, kind=dog.kind)
+    pk = dog.pk
+    if not pk:
+        if DB_DOGS:
+            pk = max(dog.pk for dog in DB_DOGS.values()) + 1
+        else:
+            pk = 1
+
+    DB_DOGS[pk] = Dog(pk=pk, name=dog.name, kind=dog.kind)
+
+    return DB_DOGS[pk]
 
 
 @app.get("/dog/{pk}", response_model=Dog)
-def get_dog_by_pk(pk: int) -> Dog:
+def get_dog_by_pk(pk: int) -> Optional[Dog]:
     """
     Получение собаки по идентификатору.
 
@@ -114,11 +108,16 @@ def get_dog_by_pk(pk: int) -> Dog:
     :return:
     """
 
-    return Dog(pk=pk, name="string", kind=DogType.terrier)
+    if dog := DB_DOGS.get(pk):
+        return dog
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail="Объект не найден."
+    )
 
 
 @app.patch("/dog/{pk}", response_model=Dog)
-def update_dog(pk: int, dog: Dog) -> Dog:
+def update_dog(pk: int, dog: Dog) -> Optional[Dog]:
     """
     Обновление собаки по идентификатору.
 
@@ -127,4 +126,12 @@ def update_dog(pk: int, dog: Dog) -> Dog:
     :return:
     """
 
-    return Dog(pk=pk, name=dog.name, kind=dog.kind)
+    if pk in DB_DOGS:
+        values = dog.dict(exclude={"pk"}, exclude_none=True)
+        DB_DOGS[pk] = DB_DOGS[pk].copy(update=values)
+
+        return DB_DOGS[pk]
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail="Объект не найден."
+    )
