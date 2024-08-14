@@ -24,8 +24,8 @@ class Dog(BaseModel):
     """
 
     pk: Optional[int] = Field(None, title="Идентификатор")
-    name: str = Field(..., title="Имя собаки")
-    kind: DogType = Field(..., title="Порода собаки")
+    name: Optional[str] = Field(None, title="Имя собаки")
+    kind: Optional[DogType] = Field(None, title="Порода собаки")
 
 
 class Timestamp(BaseModel):
@@ -125,13 +125,16 @@ def update_dog(pk: int, dog: Dog) -> Optional[Dog]:
     :param dog: Данные собаки для обновления.
     :return:
     """
-
     if pk in DB_DOGS:
-        values = dog.dict(exclude={"pk"}, exclude_none=True)
-        DB_DOGS[pk] = DB_DOGS[pk].copy(update=values)
+        values = DB_DOGS[pk]
+        if dog.name is not None:
+            values.name = dog.name
+        if dog.kind is not None:
+            values.kind = dog.kind
 
-        return DB_DOGS[pk]
+        return values
 
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND, detail="Объект не найден."
     )
+
