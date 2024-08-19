@@ -24,6 +24,14 @@ class Dog(BaseModel):
     """
 
     pk: Optional[int] = Field(None, title="Идентификатор")
+    name: str = Field(..., title="Имя собаки")
+    kind: DogType = Field(..., title="Порода собаки")
+
+
+class ChangeDogModel(Dog):
+    """
+    Модель для частичного обновления ресурса
+    """
     name: Optional[str] = Field(None, title="Имя собаки")
     kind: Optional[DogType] = Field(None, title="Порода собаки")
 
@@ -62,7 +70,7 @@ def get_post() -> Timestamp:
     :return:
     """
 
-    return Timestamp(id=0, timestamp=time.time(),)
+    return Timestamp(id=0, timestamp=int(time.time(),))
 
 
 @app.get("/dog", response_model=list[Dog])
@@ -116,8 +124,8 @@ def get_dog_by_pk(pk: int) -> Optional[Dog]:
     )
 
 
-@app.patch("/dog/{pk}", response_model=Dog)
-def update_dog(pk: int, dog: Dog) -> Optional[Dog]:
+@app.patch("/dog/{pk}", response_model=ChangeDogModel)
+def update_dog(pk: int, dog: ChangeDogModel) -> Optional[Dog]:
     """
     Обновление собаки по идентификатору.
 
@@ -125,16 +133,13 @@ def update_dog(pk: int, dog: Dog) -> Optional[Dog]:
     :param dog: Данные собаки для обновления.
     :return:
     """
-    if pk in DB_DOGS:
-        values = DB_DOGS[pk]
-        if dog.name is not None:
-            values.name = dog.name
-        if dog.kind is not None:
-            values.kind = dog.kind
 
-        return values
+    if pk in DB_DOGS:
+        values = dog.dict(exclude={"pk"}, exclude_none=True)
+        DB_DOGS[pk] = DB_DOGS[pk].copy(update=values)
+
+        return DB_DOGS[pk]
 
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND, detail="Объект не найден."
     )
-
