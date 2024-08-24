@@ -28,6 +28,14 @@ class Dog(BaseModel):
     kind: DogType = Field(..., title="Порода собаки")
 
 
+class ChangeDogModel(Dog):
+    """
+    Модель для частичного обновления ресурса
+    """
+    name: Optional[str] = Field(None, title="Имя собаки")
+    kind: Optional[DogType] = Field(None, title="Порода собаки")
+
+
 class Timestamp(BaseModel):
     """
     Timestamp-модель.
@@ -62,7 +70,7 @@ def get_post() -> Timestamp:
     :return:
     """
 
-    return Timestamp(id=0, timestamp=time.time(),)
+    return Timestamp(id=0, timestamp=int(time.time(),))
 
 
 @app.get("/dog", response_model=list[Dog])
@@ -116,8 +124,8 @@ def get_dog_by_pk(pk: int) -> Optional[Dog]:
     )
 
 
-@app.patch("/dog/{pk}", response_model=Dog)
-def update_dog(pk: int, dog: Dog) -> Optional[Dog]:
+@app.patch("/dog/{pk}", response_model=ChangeDogModel)
+def update_dog(pk: int, dog: ChangeDogModel) -> Optional[Dog]:
     """
     Обновление собаки по идентификатору.
 
